@@ -6,47 +6,597 @@ categories: ["R"]
 tags: ["R Markdown", "plot", "regression"]
 ---
 
+```{css}
+.badCode {
+background-color: red;
+}
+```
+
+
+
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(collapse = TRUE)
 ```
 
 # Data wrangling (munging)
-Code for a quick (~1 hour) overview of data wrangling in R. [Data wrangling is the process of transforming and mapping data from one "raw" data form into another format with the intent of making it more appropriate and valuable for a variety of downstream purposes such as analytics.][1]
+Basic overview of data wrangling in R. [Data wrangling is the process of transforming and mapping data from one "raw" data form into another format with the intent of making it more appropriate and valuable for a variety of downstream purposes such as analytics.][1]
 
 
-Today we will cover:
+Assumed basic knowledge of R, RStudio installed and R >= 4.0.0. 
 
-* `table()`
-* `unique()`
-* `join()`
-* `dplyr`
-  * `mutate()`
+
+Pre-wrangling inspection functions
+
+* base
+  * `str()`
+  * `unique()`
+  * `table()`
+  
+Wrangling functions
+
+* dplyr
   * `select()`
   * `filter()`
+  * `slice()`
+  * `mutate()`
   * `summarise()`
+  * `count()`
   * `arrange()`
-* pivoting from wide to long format (`pivot_longer`)
+  * `*_join()`
 
-I am assuming you have R 4.0.0 or later installed. 
+Data reshaping functions 
+
+* tidyr
+  * `pivot_longer()`
+  * `pivot_wider()`
+
+We'll go through each of the functions with minimal examples then use a few together for a case study. 
+
+
+# Set up 
+We will be using the `dplyr` and `tidyr` packages for wrangling and `nzffdr` and `ggplot2`
+for example data and plotting. 
 
 Install the packages we will use:
 ```{r eval = FALSE}
+pkgs <- c("dplyr", "tidyr", "ggplot2", "nzffdr")
+for (i in pkgs) {
+  if (!require(i, character.only = TRUE)) install.packages(i)
+}
+```
+
+Load packages:
+```{r, message = FALSE, warning = FALSE}
+library(nzffdr)  # for case study data 
+library(dplyr)   # for data wrangling 
+library(tidyr)   # for pivot_longer()
+library(ggplot2) # for figures
+```
+
+We'll also use the built in `iris` dataset to explore the functions. 
+
+
+# 1 base functions for inspecting data
+Prior to wrangling it is useful to inspect the data to make sure all is as it should be.  
+
+```{r, message = FALSE, class.source="badCode"}
+head(iris, n = 5)
+
+str(iris)
+
+unique(iris$Species)
+
+table(iris$Species)
+```
+
+# 2 Subsetting columns
+Often we import more data than we need, it can be useful to subset the data so we only have what we need. This can be achieved by dropping row and columns of data. 
+
+## 2.1. selecting/dropping columns - `dplyr::select()`
+
+individual columns
+```{r, message = FALSE}
+iris %>%
+  select(Petal.Width, Species) %>%
+  head(n = 3)
+```
+
+multiple columns
+```{r, message = FALSE}
+iris %>%
+  select(Sepal.Length:Petal.Length, Species)%>%
+  head(n = 3)
+```
+
+prefix character matching 
+```{r, message = FALSE}
+iris %>%
+  select(starts_with("S")) %>%
+  head(n = 3)
+```
+
+multiple character patterns
+```{r, message = FALSE}
+iris %>% 
+  select(starts_with(c("Petal", "Sepal"))) %>%
+  head(n = 3)
+```
+
+character patterns anywhere in the column name
+```{r, message = FALSE}
+iris %>% 
+  select(contains("al")) %>%
+  head(n = 3)
+```
+
+drop columns
+```{r, message = FALSE}
+iris %>%
+  select(-Petal.Width, -Species) %>%
+  head(n = 3)
+
+iris %>%
+  select(!starts_with("S")) %>%
+  head(n = 3)
+```
+
+## 2.2. renaming columns
+
+all
+```{r, message = FALSE}
+iris %>%
+  rename_with(toupper) %>%
+  head(n = 3)
+```
+
+by name
+```{r, message = FALSE}
+iris %>%
+  rename(petal_length = Petal.Length) %>%
+  head(n = 3)
+```
+
+only certain columns 
+```{r, message = FALSE}
+iris %>%
+  rename_with(toupper, starts_with("Petal")) %>%
+  head(n = 3)
+```
+
+# 3 Subsetting rows
+
+## 3.1. filtering- `dplyr::filter()`
+
+by name
+```{r, message = FALSE}
+iris %>%
+  filter(Species == "setosa") %>%
+  head(n = 3)
+```
+
+by value
+```{r, message = FALSE}
+iris %>%
+  filter(Sepal.Length > 5.0) %>%
+  head(n = 3)
+```
+
+by function
+```{r, message = FALSE}
+iris %>% 
+  filter(Sepal.Length  > mean(Sepal.Length, na.rm = TRUE)) %>%
+  head(n = 3)
+```
+
+by multiple conditions
+```{r, message = FALSE}
+iris %>%
+  filter(Species == "setosa" & Sepal.Length > 5.0) %>%
+  head(n = 3)
+
+iris %>%
+  filter(Species == "setosa" | Sepal.Length > 5.0) %>%
+  head(n = 3)
+```
+
+between
+```{r, message = FALSE}
+iris %>%
+  filter(between(Sepal.Length, 4, 5)) %>%
+  head(n = 3)
+```
+
+reverse filter
+```{r, message = FALSE}
+iris %>%
+  filter(!between(Sepal.Length, 4, 5)) %>%
+  head(n = 3)
+```
+
+## 3.2 slicing observations - `dplyr::slice()`
+
+first n rows
+```{r, message = FALSE}
+iris %>%
+  group_by(Species) %>%
+  slice(1:3) 
+```
+
+first n min/max rows 
+```{r, message = FALSE}
+iris %>%
+  group_by(Species) %>%
+  slice_min(Petal.Width, n = 5) 
+```
+
+
+## 3.3 removing `NA`s
+
+if there are `NA`s in a single variable drop rows
+```{r, message = FALSE}
+iris %>%
+  filter(!is.na(Sepal.Length)) %>%
+  head(n = 3)
+```
+
+if there are `NA`s in any column drop row
+```{r, message = FALSE}
+iris %>%
+  na.omit() %>%
+  head(n = 3)
+```
+
+
+# 4 Create new variables 
+
+## 4.1. dplyr::mutate()
+
+create new columns
+```{r, message = FALSE}
+iris %>%
+  mutate(Petal.size = Petal.Length + Petal.Width) %>%
+  head(n = 3)
+```
+
+modify an existing column
+```{r, message = FALSE}
+iris %>%
+  mutate(Species= as.character(Species)) %>%
+  head(n = 3)
+```
+
+multiple columns at once 
+```{r, message = FALSE}
+iris %>%
+  mutate(across(!Species, ~. + 100)) %>%
+  head(n = 3)
+```
+
+stack functions (`min_rank(desc())`)
+```{r, message = FALSE}
+iris %>%
+  mutate(rank = min_rank(desc(Sepal.Length))) %>%
+  head(n = 3)
+```
+
+combining with `ifelse()`
+```{r, message = FALSE}
+iris %>%
+  mutate(Size.Class = ifelse(Sepal.Length < 5, "small", "large")) %>% 
+  head(n = 5)
+```
+
+mutate and drop unused columns (Sepal.Length, Sepal.Width, Species)
+```{r, message = FALSE}
+iris %>%
+  mutate(Petal.size = Petal.Length + Petal.Width, .keep = "used") %>%
+  head(n = 3)
+```
+
+mutate and drop used columns (Petal.Length, Petal.Width)
+```{r, message = FALSE}
+iris %>%
+  mutate(Petal.size = Petal.Length + Petal.Width, .keep = "unused") %>%
+  head(n = 3)
+```
+
+## 4.2. adding a grouping variable - `dplyr::group_by()`
+`group_by()` more typically used with `dplyr::summarise()` than `mutate()` 
+```{r, message = FALSE}
+iris %>%
+  group_by(Species) %>%
+  mutate(N = n(),
+         Mn.Sep.Len = mean(Sepal.Length))
+```
+
+# 5 Summary statistics
+either for the whole dataset or by a grouping variable e.g. for each species
+
+## 5.1 summarise - `dplyr::summarise()`
+
+```{r, message = FALSE}
+iris %>%
+  group_by(Species) %>%
+  summarise(N = n(),
+         Mn.Sep.Len = mean(Sepal.Length))
+```
+
+## 5.2 counting observations - `dplyr::count()`
+```{r, message = FALSE}
+iris %>%
+  count(Sepal.Length, name = "n_obs", sort = TRUE) %>%
+  head(n = 5)
+```
+
+by sub groups 
+```{r, message = FALSE}
+iris %>%
+  count(Species, Sepal.Length, name = "n_obs", sort = TRUE) %>%
+  head(n = 5)
+```
+
+
+## 5.3. arranging output - `dplyr::arrange()`
+
+ascending 
+```{r, message = FALSE}
+iris %>%
+  arrange(Sepal.Length) %>%
+  head(n = 5)
+
+```
+
+descending
+```{r, message = FALSE}
+iris %>%
+  arrange(desc(Sepal.Length)) %>%
+  head(n = 5)
+```
+
+
+# 1 Joining datasets together
+A common challenge is joining multiple datasets together e.g. water quality and biological dat for a range of sites, joining datasets can be achieved via the *_join() functions from `dplyr`, for a *_join() there needs to be a column that is common between the two datasets to be joined e.g.
+
+Look at the two band datasets:
+```{r, message = FALSE}
+band_members
+band_instruments
+```
+
+
+```{r, message = FALSE}
+# includes all rows that occur in both datasets
+band_members %>% inner_join(band_instruments)
+
+# includes all rows that occur in band_members
+band_members %>% left_join(band_instruments)
+
+# includes all rows that occur in band_instruments
+band_members %>% right_join(band_instruments)
+
+# includes all rows that occur in either dataset
+band_members %>% full_join(band_instruments)
+```
+
+
+
+
+# Case study 
+
+To show how we might use these functions in the "real world" we will work through a scenario where we analyse some freshwater fish data, we will:
+
+1) determine how far inland the 5 species of whitebait are found in New Zealand. 
+
+To achieve this we will need two datasets:
+
+1) presence data for the 5 whitebait species across NZ
+2) a measure of how far inland each fish observation is
+
+Fish data is available from the [NZFFD][2] and the distance inland of all river reaches in NZ is available from the River Environment Classification (REC) database. 
+
+
+# Part 1: Getting the data
+
+NZFFD data is available via the nzffdr package, we'll import a subset of the entire database, getting all records from 2000 to 2010
+```{r, eval = FALSE}
+# Import, clean and add missing data from the NZFFD
+dat <- nzffdr::nzffd_import(starts = 2000, ends = 2010)
+dat <- nzffd_clean(dat)
+dat <- nzffd_fill(dat, alt = F, maps = F)
+```
+
+Subset of the REC database:
+```{r, eval = FALSE}
+rec <- read.csv("https://www.dropbox.com/s/zqn9f9ctb4hv74q/rec2010.csv?dl=1")
+```
+
+```{r, echo = FALSE}
+# load data behind the scenes so I don't have to query NZFFD while building the tutorial
+dat <- readRDS("nzffdData.rds")
+rec <- read.csv("rec2010.csv")
+```
+
+
+# Part 2: Inspecting the data
+The first thing to do when data is loaded into R is to inspect it to make sure everything imported as expected, variables are in the right format and cover the right range of values. 
+
+
+
+```{r network, echo=FALSE, fig.cap="REC river network", out.width = '30%', fig.align='center'}
+knitr::include_graphics("network.png")
+```
+
+First 3 rows 
+```{r}
+head(dat, n = 3)
+head(rec, n = 3)
+```
+
+Data strucutre
+```{r}
+str(dat)
+str(rec)
+```
+
+## Check individual variables
+
+We downloaded data for 2000 - 2010, check that is what we actually got:
+Check all the unique values of the year variable
+```{r}
+sort(unique(dat$y))
+table(dat$y)
+```
+
+Have a look at the species we have 
+```{r}
+sort(unique(dat$common_name))
+```
+
+Look at the REC data
+```{r}
+min(rec$DISTSEA)
+max(rec$DISTSEA)
+
+min(rec$DISTSEA, na.rm = T)
+max(rec$DISTSEA, na.rm = T)
+```
+
+```{r, echo = FALSE}
+options(max.print = 100)
+```
+
+check if the `nzrech` variable matches in the two datasets 
+```{r}
+intersect(dat$nzreach, rec$nzreach)
+setdiff(dat$nzreach, rec$nzreach)
+```
+
+
+# Part 3 The actual munging 
+
+Steps to take:
+
+1) join the `dat` and `rec` datasets (`inner_join()`)
+2) filter out unwanted years and species (`filter()`)
+3) drop unwanted columns (`select()`)
+4) create a new column distsea_km (`mutate()`)
+
+
+join the two datasets 
+```{r}
+datBoth <- inner_join(dat, rec, by = "nzreach")
+head(datBoth, n = 3)
+```
+
+# filter rows, select columns and mutate columns
+```{r, eval = FALSE}
+datBoth <- datBoth %>%
+  filter(y < 2011)
+
+datBoth <- datBoth %>%
+  select(nzreach, y, east, north, altitude, effort, number:common_name, 
+         threat_class:native, ORDER, DISTSEA)
+
+datBoth <- datBoth %>%
+  mutate(dists_km = DISTSEA/1000,
+         ORDER = as.factor(ORDER))
+```
+
+```{r}
+datBoth <- datBoth %>%
+  filter(y < 2011) %>%
+  select(nzreach, y, east, north, altitude, effort, number:common_name, 
+  threat_class:native, ORDER, DISTSEA) %>%
+  mutate(distsea_km = DISTSEA/1000,
+         ORDER = as.factor(ORDER))
+head(datBoth, n = 3)
+```
+
+```{r, eval = F}
+datBoth <- datBoth %>%
+  select(tidyselect::starts_with("s"))
+```
+
+
+We now have somewhat curated dataset (`datBoth`), to address each of our three aims we need to do different things with the data, so we will now create a separate dataset for each aim. 
+
+## Aim 1 distance inland of the 5 whitebait species 
+
+```{r}
+
+wtbt <- c("Koaro", "Inanga", "Shortjaw kokopu", "Banded kokopu", "Giant kokopu")
+
+datWtbt <- datBoth %>%
+  filter(common_name %in% wtbt)
+  
+```
+
+```{r}
+datWtbt$common_name <- factor(datWtbt$common_name, 
+                              levels = c("Koaro", "Shortjaw kokopu", "Inanga", 
+                                         "Banded kokopu", "Giant kokopu"))
+
+ggplot(datWtbt, aes(x = common_name, y = distsea_km, colour = common_name)) +
+  geom_jitter(alpha = 0.5) +
+  scale_colour_brewer(palette = "Dark2") +
+  coord_flip() +
+  xlab("Species") +
+  ylab("Distance to sea (km)") +
+  theme_bw() +
+  theme(legend.position = "bottom")
+```
+
+
+
+
+
+
+
+
+
+
+# Appendix - All code
+```{r eval = FALSE}
+
+##########
+## SETUP #
+##########
+
+# Download any missing packages 
 if (!require("dplyr")) install.packages("dplyr")
 if (!require("tidyr")) install.packages("tidyr")
 if (!require("nzffdr")) devtools::install_github("flee598/nzffdr")
-```
 
-Load packges:
-```{r, message=FALSE}
+# load packages 
 library(nzffdr) # for example data 
 library(dplyr)  # for data wrangling 
 library(tidyr)  # for pivot_longer()
-```
+
+# Ipmort, clean and add missing data from the NZFFD
+dat <- nzffdr::nzffd_import(starts = 2000, ends = 2010)
+dat <- nzffd_clean(dat)
+dat <- nzffd_fill(dat, alt = F, maps = F)
+
+
+###############################
+# Part 1: Inspecting the data #
+###############################
+
+# check the column names, dimensions and have a look at the first few rows
+colnames(dat)
+dim(dat)
+head(dat, n = 3)
+str(dat)
+
+````
+
+
+
 
 
 [`dplyr`](https://dplyr.tidyverse.org) is a part of the `tidyverse` concerned with the basics of data manipulation. 
 
 
 
-
 [1]: https://en.wikipedia.org/wiki/Data_wrangling
+[2]: https://nzffdms.niwa.co.nz/search

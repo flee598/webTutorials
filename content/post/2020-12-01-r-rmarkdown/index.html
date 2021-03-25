@@ -9,32 +9,806 @@ tags: ["R Markdown", "plot", "regression"]
 <script src="{{< blogdown/postref >}}index_files/header-attrs/header-attrs.js"></script>
 
 
+<pre class="css"><code>.badCode {
+background-color: red;
+}</code></pre>
+<style type="text/css">
+.badCode {
+background-color: red;
+}
+</style>
 <div id="data-wrangling-munging" class="section level1">
 <h1>Data wrangling (munging)</h1>
-<p>Code for a quick (~1 hour) overview of data wrangling in R. <a href="https://en.wikipedia.org/wiki/Data_wrangling">Data wrangling is the process of transforming and mapping data from one “raw” data form into another format with the intent of making it more appropriate and valuable for a variety of downstream purposes such as analytics.</a></p>
-<p>Today we will cover:</p>
+<p>Basic overview of data wrangling in R. <a href="https://en.wikipedia.org/wiki/Data_wrangling">Data wrangling is the process of transforming and mapping data from one “raw” data form into another format with the intent of making it more appropriate and valuable for a variety of downstream purposes such as analytics.</a></p>
+<p>Assumed basic knowledge of R, RStudio installed and R &gt;= 4.0.0.</p>
+<p>Pre-wrangling inspection functions</p>
 <ul>
-<li><code>table()</code></li>
+<li>base
+<ul>
+<li><code>str()</code></li>
 <li><code>unique()</code></li>
-<li><code>join()</code></li>
-<li><code>dplyr</code>
+<li><code>table()</code></li>
+</ul></li>
+</ul>
+<p>Wrangling functions</p>
 <ul>
-<li><code>mutate()</code></li>
+<li>dplyr
+<ul>
 <li><code>select()</code></li>
 <li><code>filter()</code></li>
+<li><code>slice()</code></li>
+<li><code>mutate()</code></li>
 <li><code>summarise()</code></li>
+<li><code>count()</code></li>
 <li><code>arrange()</code></li>
+<li><code>*_join()</code></li>
 </ul></li>
-<li>pivoting from wide to long format (<code>pivot_longer</code>)</li>
 </ul>
-<p>I am assuming you have R 4.0.0 or later installed.</p>
+<p>Data reshaping functions</p>
+<ul>
+<li>tidyr
+<ul>
+<li><code>pivot_longer()</code></li>
+<li><code>pivot_wider()</code></li>
+</ul></li>
+</ul>
+<p>We’ll go through each of the functions with minimal examples then use a few together for a case study.</p>
+</div>
+<div id="set-up" class="section level1">
+<h1>Set up</h1>
+<p>We will be using the <code>dplyr</code> and <code>tidyr</code> packages for wrangling and <code>nzffdr</code> and <code>ggplot2</code>
+for example data and plotting.</p>
 <p>Install the packages we will use:</p>
-<pre class="r"><code>if (!require(&quot;dplyr&quot;)) install.packages(&quot;dplyr&quot;)
+<pre class="r"><code>pkgs &lt;- c(&quot;dplyr&quot;, &quot;tidyr&quot;, &quot;ggplot2&quot;, &quot;nzffdr&quot;)
+for (i in pkgs) {
+  if (!require(i, character.only = TRUE)) install.packages(i)
+}</code></pre>
+<p>Load packages:</p>
+<pre class="r"><code>library(nzffdr)  # for case study data 
+library(dplyr)   # for data wrangling 
+library(tidyr)   # for pivot_longer()
+library(ggplot2) # for figures</code></pre>
+<p>We’ll also use the built in <code>iris</code> dataset to explore the functions.</p>
+</div>
+<div id="base-functions-for-inspecting-data" class="section level1">
+<h1>1 base functions for inspecting data</h1>
+<p>Prior to wrangling it is useful to inspect the data to make sure all is as it should be.</p>
+<pre class="r badCode"><code>head(iris, n = 5)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa
+## 4          4.6         3.1          1.5         0.2  setosa
+## 5          5.0         3.6          1.4         0.2  setosa</code></pre>
+<pre class="r badCode"><code>
+str(iris)
+## &#39;data.frame&#39;:    150 obs. of  5 variables:
+##  $ Sepal.Length: num  5.1 4.9 4.7 4.6 5 5.4 4.6 5 4.4 4.9 ...
+##  $ Sepal.Width : num  3.5 3 3.2 3.1 3.6 3.9 3.4 3.4 2.9 3.1 ...
+##  $ Petal.Length: num  1.4 1.4 1.3 1.5 1.4 1.7 1.4 1.5 1.4 1.5 ...
+##  $ Petal.Width : num  0.2 0.2 0.2 0.2 0.2 0.4 0.3 0.2 0.2 0.1 ...
+##  $ Species     : Factor w/ 3 levels &quot;setosa&quot;,&quot;versicolor&quot;,..: 1 1 1 1 1 1 1 1 1 1 ...</code></pre>
+<pre class="r badCode"><code>
+unique(iris$Species)
+## [1] setosa     versicolor virginica 
+## Levels: setosa versicolor virginica</code></pre>
+<pre class="r badCode"><code>
+table(iris$Species)
+## 
+##     setosa versicolor  virginica 
+##         50         50         50</code></pre>
+</div>
+<div id="subsetting-columns" class="section level1">
+<h1>2 Subsetting columns</h1>
+<p>Often we import more data than we need, it can be useful to subset the data so we only have what we need. This can be achieved by dropping row and columns of data.</p>
+<div id="selectingdropping-columns---dplyrselect" class="section level2">
+<h2>2.1. selecting/dropping columns - <code>dplyr::select()</code></h2>
+<p>individual columns</p>
+<pre class="r"><code>iris %&gt;%
+  select(Petal.Width, Species) %&gt;%
+  head(n = 3)
+##   Petal.Width Species
+## 1         0.2  setosa
+## 2         0.2  setosa
+## 3         0.2  setosa</code></pre>
+<p>multiple columns</p>
+<pre class="r"><code>iris %&gt;%
+  select(Sepal.Length:Petal.Length, Species)%&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Species
+## 1          5.1         3.5          1.4  setosa
+## 2          4.9         3.0          1.4  setosa
+## 3          4.7         3.2          1.3  setosa</code></pre>
+<p>prefix character matching</p>
+<pre class="r"><code>iris %&gt;%
+  select(starts_with(&quot;S&quot;)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Species
+## 1          5.1         3.5  setosa
+## 2          4.9         3.0  setosa
+## 3          4.7         3.2  setosa</code></pre>
+<p>multiple character patterns</p>
+<pre class="r"><code>iris %&gt;% 
+  select(starts_with(c(&quot;Petal&quot;, &quot;Sepal&quot;))) %&gt;%
+  head(n = 3)
+##   Petal.Length Petal.Width Sepal.Length Sepal.Width
+## 1          1.4         0.2          5.1         3.5
+## 2          1.4         0.2          4.9         3.0
+## 3          1.3         0.2          4.7         3.2</code></pre>
+<p>character patterns anywhere in the column name</p>
+<pre class="r"><code>iris %&gt;% 
+  select(contains(&quot;al&quot;)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width
+## 1          5.1         3.5          1.4         0.2
+## 2          4.9         3.0          1.4         0.2
+## 3          4.7         3.2          1.3         0.2</code></pre>
+<p>drop columns</p>
+<pre class="r"><code>iris %&gt;%
+  select(-Petal.Width, -Species) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length
+## 1          5.1         3.5          1.4
+## 2          4.9         3.0          1.4
+## 3          4.7         3.2          1.3
+
+iris %&gt;%
+  select(!starts_with(&quot;S&quot;)) %&gt;%
+  head(n = 3)
+##   Petal.Length Petal.Width
+## 1          1.4         0.2
+## 2          1.4         0.2
+## 3          1.3         0.2</code></pre>
+</div>
+<div id="renaming-columns" class="section level2">
+<h2>2.2. renaming columns</h2>
+<p>all</p>
+<pre class="r"><code>iris %&gt;%
+  rename_with(toupper) %&gt;%
+  head(n = 3)
+##   SEPAL.LENGTH SEPAL.WIDTH PETAL.LENGTH PETAL.WIDTH SPECIES
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+<p>by name</p>
+<pre class="r"><code>iris %&gt;%
+  rename(petal_length = Petal.Length) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width petal_length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+<p>only certain columns</p>
+<pre class="r"><code>iris %&gt;%
+  rename_with(toupper, starts_with(&quot;Petal&quot;)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width PETAL.LENGTH PETAL.WIDTH Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+</div>
+</div>
+<div id="subsetting-rows" class="section level1">
+<h1>3 Subsetting rows</h1>
+<div id="filtering--dplyrfilter" class="section level2">
+<h2>3.1. filtering- <code>dplyr::filter()</code></h2>
+<p>by name</p>
+<pre class="r"><code>iris %&gt;%
+  filter(Species == &quot;setosa&quot;) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+<p>by value</p>
+<pre class="r"><code>iris %&gt;%
+  filter(Sepal.Length &gt; 5.0) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          5.4         3.9          1.7         0.4  setosa
+## 3          5.4         3.7          1.5         0.2  setosa</code></pre>
+<p>by function</p>
+<pre class="r"><code>iris %&gt;% 
+  filter(Sepal.Length  &gt; mean(Sepal.Length, na.rm = TRUE)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width    Species
+## 1          7.0         3.2          4.7         1.4 versicolor
+## 2          6.4         3.2          4.5         1.5 versicolor
+## 3          6.9         3.1          4.9         1.5 versicolor</code></pre>
+<p>by multiple conditions</p>
+<pre class="r"><code>iris %&gt;%
+  filter(Species == &quot;setosa&quot; &amp; Sepal.Length &gt; 5.0) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          5.4         3.9          1.7         0.4  setosa
+## 3          5.4         3.7          1.5         0.2  setosa
+
+iris %&gt;%
+  filter(Species == &quot;setosa&quot; | Sepal.Length &gt; 5.0) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+<p>between</p>
+<pre class="r"><code>iris %&gt;%
+  filter(between(Sepal.Length, 4, 5)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          4.9         3.0          1.4         0.2  setosa
+## 2          4.7         3.2          1.3         0.2  setosa
+## 3          4.6         3.1          1.5         0.2  setosa</code></pre>
+<p>reverse filter</p>
+<pre class="r"><code>iris %&gt;%
+  filter(!between(Sepal.Length, 4, 5)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          5.4         3.9          1.7         0.4  setosa
+## 3          5.4         3.7          1.5         0.2  setosa</code></pre>
+</div>
+<div id="slicing-observations---dplyrslice" class="section level2">
+<h2>3.2 slicing observations - <code>dplyr::slice()</code></h2>
+<p>first n rows</p>
+<pre class="r"><code>iris %&gt;%
+  group_by(Species) %&gt;%
+  slice(1:3) 
+## # A tibble: 9 x 5
+## # Groups:   Species [3]
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species   
+##          &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;fct&gt;     
+## 1          5.1         3.5          1.4         0.2 setosa    
+## 2          4.9         3            1.4         0.2 setosa    
+## 3          4.7         3.2          1.3         0.2 setosa    
+## 4          7           3.2          4.7         1.4 versicolor
+## 5          6.4         3.2          4.5         1.5 versicolor
+## 6          6.9         3.1          4.9         1.5 versicolor
+## 7          6.3         3.3          6           2.5 virginica 
+## 8          5.8         2.7          5.1         1.9 virginica 
+## 9          7.1         3            5.9         2.1 virginica</code></pre>
+<p>first n min/max rows</p>
+<pre class="r"><code>iris %&gt;%
+  group_by(Species) %&gt;%
+  slice_min(Petal.Width, n = 5) 
+## # A tibble: 17 x 5
+## # Groups:   Species [3]
+##    Sepal.Length Sepal.Width Petal.Length Petal.Width Species   
+##           &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;fct&gt;     
+##  1          4.9         3.1          1.5         0.1 setosa    
+##  2          4.8         3            1.4         0.1 setosa    
+##  3          4.3         3            1.1         0.1 setosa    
+##  4          5.2         4.1          1.5         0.1 setosa    
+##  5          4.9         3.6          1.4         0.1 setosa    
+##  6          4.9         2.4          3.3         1   versicolor
+##  7          5           2            3.5         1   versicolor
+##  8          6           2.2          4           1   versicolor
+##  9          5.8         2.7          4.1         1   versicolor
+## 10          5.7         2.6          3.5         1   versicolor
+## 11          5.5         2.4          3.7         1   versicolor
+## 12          5           2.3          3.3         1   versicolor
+## 13          6.1         2.6          5.6         1.4 virginica 
+## 14          6           2.2          5           1.5 virginica 
+## 15          6.3         2.8          5.1         1.5 virginica 
+## 16          7.2         3            5.8         1.6 virginica 
+## 17          4.9         2.5          4.5         1.7 virginica</code></pre>
+</div>
+<div id="removing-nas" class="section level2">
+<h2>3.3 removing <code>NA</code>s</h2>
+<p>if there are <code>NA</code>s in a single variable drop rows</p>
+<pre class="r"><code>iris %&gt;%
+  filter(!is.na(Sepal.Length)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+<p>if there are <code>NA</code>s in any column drop row</p>
+<pre class="r"><code>iris %&gt;%
+  na.omit() %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+</div>
+</div>
+<div id="create-new-variables" class="section level1">
+<h1>4 Create new variables</h1>
+<div id="dplyrmutate" class="section level2">
+<h2>4.1. dplyr::mutate()</h2>
+<p>create new columns</p>
+<pre class="r"><code>iris %&gt;%
+  mutate(Petal.size = Petal.Length + Petal.Width) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species Petal.size
+## 1          5.1         3.5          1.4         0.2  setosa        1.6
+## 2          4.9         3.0          1.4         0.2  setosa        1.6
+## 3          4.7         3.2          1.3         0.2  setosa        1.5</code></pre>
+<p>modify an existing column</p>
+<pre class="r"><code>iris %&gt;%
+  mutate(Species= as.character(Species)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          5.1         3.5          1.4         0.2  setosa
+## 2          4.9         3.0          1.4         0.2  setosa
+## 3          4.7         3.2          1.3         0.2  setosa</code></pre>
+<p>multiple columns at once</p>
+<pre class="r"><code>iris %&gt;%
+  mutate(across(!Species, ~. + 100)) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1        105.1       103.5        101.4       100.2  setosa
+## 2        104.9       103.0        101.4       100.2  setosa
+## 3        104.7       103.2        101.3       100.2  setosa</code></pre>
+<p>stack functions (<code>min_rank(desc())</code>)</p>
+<pre class="r"><code>iris %&gt;%
+  mutate(rank = min_rank(desc(Sepal.Length))) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species rank
+## 1          5.1         3.5          1.4         0.2  setosa  110
+## 2          4.9         3.0          1.4         0.2  setosa  129
+## 3          4.7         3.2          1.3         0.2  setosa  140</code></pre>
+<p>combining with <code>ifelse()</code></p>
+<pre class="r"><code>iris %&gt;%
+  mutate(Size.Class = ifelse(Sepal.Length &lt; 5, &quot;small&quot;, &quot;large&quot;)) %&gt;% 
+  head(n = 5)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species Size.Class
+## 1          5.1         3.5          1.4         0.2  setosa      large
+## 2          4.9         3.0          1.4         0.2  setosa      small
+## 3          4.7         3.2          1.3         0.2  setosa      small
+## 4          4.6         3.1          1.5         0.2  setosa      small
+## 5          5.0         3.6          1.4         0.2  setosa      large</code></pre>
+<p>mutate and drop unused columns (Sepal.Length, Sepal.Width, Species)</p>
+<pre class="r"><code>iris %&gt;%
+  mutate(Petal.size = Petal.Length + Petal.Width, .keep = &quot;used&quot;) %&gt;%
+  head(n = 3)
+##   Petal.Length Petal.Width Petal.size
+## 1          1.4         0.2        1.6
+## 2          1.4         0.2        1.6
+## 3          1.3         0.2        1.5</code></pre>
+<p>mutate and drop used columns (Petal.Length, Petal.Width)</p>
+<pre class="r"><code>iris %&gt;%
+  mutate(Petal.size = Petal.Length + Petal.Width, .keep = &quot;unused&quot;) %&gt;%
+  head(n = 3)
+##   Sepal.Length Sepal.Width Species Petal.size
+## 1          5.1         3.5  setosa        1.6
+## 2          4.9         3.0  setosa        1.6
+## 3          4.7         3.2  setosa        1.5</code></pre>
+</div>
+<div id="adding-a-grouping-variable---dplyrgroup_by" class="section level2">
+<h2>4.2. adding a grouping variable - <code>dplyr::group_by()</code></h2>
+<p><code>group_by()</code> more typically used with <code>dplyr::summarise()</code> than <code>mutate()</code></p>
+<pre class="r"><code>iris %&gt;%
+  group_by(Species) %&gt;%
+  mutate(N = n(),
+         Mn.Sep.Len = mean(Sepal.Length))
+## # A tibble: 150 x 7
+## # Groups:   Species [3]
+##    Sepal.Length Sepal.Width Petal.Length Petal.Width Species     N Mn.Sep.Len
+##           &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt; &lt;fct&gt;   &lt;int&gt;      &lt;dbl&gt;
+##  1          5.1         3.5          1.4         0.2 setosa     50       5.01
+##  2          4.9         3            1.4         0.2 setosa     50       5.01
+##  3          4.7         3.2          1.3         0.2 setosa     50       5.01
+##  4          4.6         3.1          1.5         0.2 setosa     50       5.01
+##  5          5           3.6          1.4         0.2 setosa     50       5.01
+##  6          5.4         3.9          1.7         0.4 setosa     50       5.01
+##  7          4.6         3.4          1.4         0.3 setosa     50       5.01
+##  8          5           3.4          1.5         0.2 setosa     50       5.01
+##  9          4.4         2.9          1.4         0.2 setosa     50       5.01
+## 10          4.9         3.1          1.5         0.1 setosa     50       5.01
+## # ... with 140 more rows</code></pre>
+</div>
+</div>
+<div id="summary-statistics" class="section level1">
+<h1>5 Summary statistics</h1>
+<p>either for the whole dataset or by a grouping variable e.g. for each species</p>
+<div id="summarise---dplyrsummarise" class="section level2">
+<h2>5.1 summarise - <code>dplyr::summarise()</code></h2>
+<pre class="r"><code>iris %&gt;%
+  group_by(Species) %&gt;%
+  summarise(N = n(),
+         Mn.Sep.Len = mean(Sepal.Length))
+## # A tibble: 3 x 3
+##   Species        N Mn.Sep.Len
+##   &lt;fct&gt;      &lt;int&gt;      &lt;dbl&gt;
+## 1 setosa        50       5.01
+## 2 versicolor    50       5.94
+## 3 virginica     50       6.59</code></pre>
+</div>
+<div id="counting-observations---dplyrcount" class="section level2">
+<h2>5.2 counting observations - <code>dplyr::count()</code></h2>
+<pre class="r"><code>iris %&gt;%
+  count(Sepal.Length, name = &quot;n_obs&quot;, sort = TRUE) %&gt;%
+  head(n = 5)
+##   Sepal.Length n_obs
+## 1          5.0    10
+## 2          5.1     9
+## 3          6.3     9
+## 4          5.7     8
+## 5          6.7     8</code></pre>
+<p>by sub groups</p>
+<pre class="r"><code>iris %&gt;%
+  count(Species, Sepal.Length, name = &quot;n_obs&quot;, sort = TRUE) %&gt;%
+  head(n = 5)
+##     Species Sepal.Length n_obs
+## 1    setosa          5.0     8
+## 2    setosa          5.1     8
+## 3 virginica          6.3     6
+## 4    setosa          4.8     5
+## 5    setosa          5.4     5</code></pre>
+</div>
+<div id="arranging-output---dplyrarrange" class="section level2">
+<h2>5.3. arranging output - <code>dplyr::arrange()</code></h2>
+<p>ascending</p>
+<pre class="r"><code>iris %&gt;%
+  arrange(Sepal.Length) %&gt;%
+  head(n = 5)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width Species
+## 1          4.3         3.0          1.1         0.1  setosa
+## 2          4.4         2.9          1.4         0.2  setosa
+## 3          4.4         3.0          1.3         0.2  setosa
+## 4          4.4         3.2          1.3         0.2  setosa
+## 5          4.5         2.3          1.3         0.3  setosa</code></pre>
+<p>descending</p>
+<pre class="r"><code>iris %&gt;%
+  arrange(desc(Sepal.Length)) %&gt;%
+  head(n = 5)
+##   Sepal.Length Sepal.Width Petal.Length Petal.Width   Species
+## 1          7.9         3.8          6.4         2.0 virginica
+## 2          7.7         3.8          6.7         2.2 virginica
+## 3          7.7         2.6          6.9         2.3 virginica
+## 4          7.7         2.8          6.7         2.0 virginica
+## 5          7.7         3.0          6.1         2.3 virginica</code></pre>
+</div>
+</div>
+<div id="joining-datasets-together" class="section level1">
+<h1>1 Joining datasets together</h1>
+<p>A common challenge is joining multiple datasets together e.g. water quality and biological dat for a range of sites, joining datasets can be achieved via the *_join() functions from <code>dplyr</code>, for a *_join() there needs to be a column that is common between the two datasets to be joined e.g.</p>
+<p>Look at the two band datasets:</p>
+<pre class="r"><code>band_members
+## # A tibble: 3 x 2
+##   name  band   
+##   &lt;chr&gt; &lt;chr&gt;  
+## 1 Mick  Stones 
+## 2 John  Beatles
+## 3 Paul  Beatles
+band_instruments
+## # A tibble: 3 x 2
+##   name  plays 
+##   &lt;chr&gt; &lt;chr&gt; 
+## 1 John  guitar
+## 2 Paul  bass  
+## 3 Keith guitar</code></pre>
+<pre class="r"><code># includes all rows that occur in both datasets
+band_members %&gt;% inner_join(band_instruments)
+## # A tibble: 2 x 3
+##   name  band    plays 
+##   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt; 
+## 1 John  Beatles guitar
+## 2 Paul  Beatles bass
+
+# includes all rows that occur in band_members
+band_members %&gt;% left_join(band_instruments)
+## # A tibble: 3 x 3
+##   name  band    plays 
+##   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt; 
+## 1 Mick  Stones  &lt;NA&gt;  
+## 2 John  Beatles guitar
+## 3 Paul  Beatles bass
+
+# includes all rows that occur in band_instruments
+band_members %&gt;% right_join(band_instruments)
+## # A tibble: 3 x 3
+##   name  band    plays 
+##   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt; 
+## 1 John  Beatles guitar
+## 2 Paul  Beatles bass  
+## 3 Keith &lt;NA&gt;    guitar
+
+# includes all rows that occur in either dataset
+band_members %&gt;% full_join(band_instruments)
+## # A tibble: 4 x 3
+##   name  band    plays 
+##   &lt;chr&gt; &lt;chr&gt;   &lt;chr&gt; 
+## 1 Mick  Stones  &lt;NA&gt;  
+## 2 John  Beatles guitar
+## 3 Paul  Beatles bass  
+## 4 Keith &lt;NA&gt;    guitar</code></pre>
+</div>
+<div id="case-study" class="section level1">
+<h1>Case study</h1>
+<p>To show how we might use these functions in the “real world” we will work through a scenario where we analyse some freshwater fish data, we will:</p>
+<ol style="list-style-type: decimal">
+<li>determine how far inland the 5 species of whitebait are found in New Zealand.</li>
+</ol>
+<p>To achieve this we will need two datasets:</p>
+<ol style="list-style-type: decimal">
+<li>presence data for the 5 whitebait species across NZ</li>
+<li>a measure of how far inland each fish observation is</li>
+</ol>
+<p>Fish data is available from the <a href="https://nzffdms.niwa.co.nz/search">NZFFD</a> and the distance inland of all river reaches in NZ is available from the River Environment Classification (REC) database.</p>
+</div>
+<div id="part-1-getting-the-data" class="section level1">
+<h1>Part 1: Getting the data</h1>
+<p>NZFFD data is available via the nzffdr package, we’ll import a subset of the entire database, getting all records from 2000 to 2010</p>
+<pre class="r"><code># Import, clean and add missing data from the NZFFD
+dat &lt;- nzffdr::nzffd_import(starts = 2000, ends = 2010)
+dat &lt;- nzffd_clean(dat)
+dat &lt;- nzffd_fill(dat, alt = F, maps = F)</code></pre>
+<p>Subset of the REC database:</p>
+<pre class="r"><code>rec &lt;- read.csv(&quot;https://www.dropbox.com/s/zqn9f9ctb4hv74q/rec2010.csv?dl=1&quot;)</code></pre>
+</div>
+<div id="part-2-inspecting-the-data" class="section level1">
+<h1>Part 2: Inspecting the data</h1>
+<p>The first thing to do when data is loaded into R is to inspect it to make sure everything imported as expected, variables are in the right format and cover the right range of values.</p>
+<div class="figure" style="text-align: center"><span id="fig:network"></span>
+<img src="network.png" alt="REC river network" width="30%" />
+<p class="caption">
+Figure 1: REC river network
+</p>
+</div>
+<p>First 3 rows</p>
+<pre class="r"><code>head(dat, n = 3)
+##   spcode  card m    y catchname   catch                locality     time  org
+## 1 aldfor 29348 5 2007    Whau R 080.060         Avondale Stream 11:00:00  bma
+## 2 aldfor 21454 2 2002    Long B 075.000 Unnamed Stream Long Bay     &lt;NA&gt; nscc
+## 3 aldfor 23928 1 2004   Clive R 231.520          Raupare Stream 21:05:00 hbrc
+##   map    east   north altitude penet fishmeth effort pass abund number minl
+## 1 r11 2661200 6475000       10     2      nte     50    1  &lt;NA&gt;      4  230
+## 2 r10 2665859 6500387       10     1      han     NA   NA  &lt;NA&gt;      6   NA
+## 3 v21 2842200 6170800        4     8      spo    200   NA  &lt;NA&gt;      6   NA
+##   maxl nzreach   form      common_name             sci_name    family
+## 1  260 2006167 Stream Yelloweye mullet Aldrichetta forsteri Mugilidae
+## 2  150 2004122 Stream Yelloweye mullet Aldrichetta forsteri Mugilidae
+## 3   NA 8025062 Stream Yelloweye mullet Aldrichetta forsteri Mugilidae
+##         genus  species   threat_class native
+## 1 Aldrichetta forsteri not threatened native
+## 2 Aldrichetta forsteri not threatened native
+## 3 Aldrichetta forsteri not threatened native
+head(rec, n = 3)
+##   X nzreach    LENGTH ORDER CLIMATE GEOLOGY NET_POSN   DISTSEA CATCHAREA
+## 1 1 1000001 2980.6602     1      WD      VA       LO 3547.6450 1935900.0
+## 2 2 1000006 1116.3961     1      WD      Pl       LO 1116.3960  700435.1
+## 3 3 1000010  314.5584     2      WD      VA       LO  314.5584 1926737.6</code></pre>
+<p>Data strucutre</p>
+<pre class="r"><code>str(dat)
+## &#39;data.frame&#39;:    58845 obs. of  30 variables:
+##  $ spcode      : chr  &quot;aldfor&quot; &quot;aldfor&quot; &quot;aldfor&quot; &quot;aldfor&quot; ...
+##  $ card        : int  29348 21454 23928 105608 108028 23213 21130 30503 22440 19350 ...
+##  $ m           : int  5 2 1 11 5 3 3 11 1 1 ...
+##  $ y           : int  2007 2002 2004 2003 2005 2003 2001 2008 2003 2004 ...
+##  $ catchname   : chr  &quot;Whau R&quot; &quot;Long B&quot; &quot;Clive R&quot; &quot;Manawatu R&quot; ...
+##  $ catch       : chr  &quot;080.060&quot; &quot;075.000&quot; &quot;231.520&quot; &quot;325.000&quot; ...
+##  $ locality    : chr  &quot;Avondale Stream&quot; &quot;Unnamed Stream Long Bay&quot; &quot;Raupare Stream&quot; &quot;Manawatu River&quot; ...
+##  $ time        : &#39;times&#39; num  11:00:00 NA 21:05:00 NA NA ...
+##  $ org         : chr  &quot;bma&quot; &quot;nscc&quot; &quot;hbrc&quot; &quot;uow&quot; ...
+##  $ map         : chr  &quot;r11&quot; &quot;r10&quot; &quot;v21&quot; &quot;s24&quot; ...
+##  $ east        : int  2661200 2665859 2842200 2702114 2170262 2816600 2492600 2848700 2545000 2484700 ...
+##  $ north       : int  6475000 6500387 6170800 6074811 5396529 6093900 6040800 6356400 6641200 5743500 ...
+##  $ altitude    : int  10 10 4 14 NA 5 2 5 0 3 ...
+##  $ penet       : int  2 1 8 8 NA 8 2 5 1 8 ...
+##  $ fishmeth    : chr  &quot;nte&quot; &quot;han&quot; &quot;spo&quot; &quot;efb&quot; ...
+##  $ effort      : int  50 NA 200 200 13 7 400 NA 4 4 ...
+##  $ pass        : int  1 NA NA NA NA NA NA NA NA NA ...
+##  $ abund       : chr  NA NA NA NA ...
+##  $ number      : int  4 6 6 3 11 16 1 5 6 11 ...
+##  $ minl        : int  230 NA NA NA NA 154 220 244 NA NA ...
+##  $ maxl        : int  260 150 NA NA NA 290 NA 285 350 NA ...
+##  $ nzreach     : int  2006167 2004122 8025062 7043284 15319597 8034472 10002380 4006069 1010766 13045848 ...
+##  $ form        : chr  &quot;Stream&quot; &quot;Stream&quot; &quot;Stream&quot; &quot;River&quot; ...
+##  $ common_name : chr  &quot;Yelloweye mullet&quot; &quot;Yelloweye mullet&quot; &quot;Yelloweye mullet&quot; &quot;Yelloweye mullet&quot; ...
+##  $ sci_name    : chr  &quot;Aldrichetta forsteri&quot; &quot;Aldrichetta forsteri&quot; &quot;Aldrichetta forsteri&quot; &quot;Aldrichetta forsteri&quot; ...
+##  $ family      : chr  &quot;Mugilidae&quot; &quot;Mugilidae&quot; &quot;Mugilidae&quot; &quot;Mugilidae&quot; ...
+##  $ genus       : chr  &quot;Aldrichetta&quot; &quot;Aldrichetta&quot; &quot;Aldrichetta&quot; &quot;Aldrichetta&quot; ...
+##  $ species     : chr  &quot;forsteri&quot; &quot;forsteri&quot; &quot;forsteri&quot; &quot;forsteri&quot; ...
+##  $ threat_class: chr  &quot;not threatened&quot; &quot;not threatened&quot; &quot;not threatened&quot; &quot;not threatened&quot; ...
+##  $ native      : chr  &quot;native&quot; &quot;native&quot; &quot;native&quot; &quot;native&quot; ...
+str(rec)
+## &#39;data.frame&#39;:    10972 obs. of  9 variables:
+##  $ X        : int  1 2 3 4 5 6 7 8 9 10 ...
+##  $ nzreach  : int  1000001 1000006 1000010 1000011 1000013 1000023 1000026 1000036 1000039 1000056 ...
+##  $ LENGTH   : num  2981 1116 315 912 489 ...
+##  $ ORDER    : int  1 1 2 1 2 1 2 1 3 2 ...
+##  $ CLIMATE  : chr  &quot;WD&quot; &quot;WD&quot; &quot;WD&quot; &quot;WD&quot; ...
+##  $ GEOLOGY  : chr  &quot;VA&quot; &quot;Pl&quot; &quot;VA&quot; &quot;SS&quot; ...
+##  $ NET_POSN : chr  &quot;LO&quot; &quot;LO&quot; &quot;LO&quot; &quot;LO&quot; ...
+##  $ DISTSEA  : num  3548 1116 315 1593 489 ...
+##  $ CATCHAREA: num  1935900 700435 1926738 935100 1959028 ...</code></pre>
+<div id="check-individual-variables" class="section level2">
+<h2>Check individual variables</h2>
+<p>We downloaded data for 2000 - 2010, check that is what we actually got:
+Check all the unique values of the year variable</p>
+<pre class="r"><code>sort(unique(dat$y))
+##  [1] 2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 2011 2012
+table(dat$y)
+## 
+## 2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 2011 2012 
+## 4099 6542 4826 5024 5173 6998 5694 5605 6077 4289 4509    7    2</code></pre>
+<p>Have a look at the species we have</p>
+<pre class="r"><code>sort(unique(dat$common_name))
+##  [1] &quot;Alpine galaxias&quot;          &quot;Atlantic salmon&quot;         
+##  [3] &quot;Australian longfin eel&quot;   &quot;Banded kokopu&quot;           
+##  [5] &quot;Bignose galaxias&quot;         &quot;Black flounder&quot;          
+##  [7] &quot;Black mudfish&quot;            &quot;Bluegill bully&quot;          
+##  [9] &quot;Brook char&quot;               &quot;Brown mudfish&quot;           
+## [11] &quot;Brown trout&quot;              &quot;Burgundy mudfish&quot;        
+## [13] &quot;Canterbury galaxias&quot;      &quot;Canterbury mudfish&quot;      
+## [15] &quot;Catfish&quot;                  &quot;Chatham mudfish&quot;         
+## [17] &quot;Chinook salmon&quot;           &quot;Common bully&quot;            
+## [19] &quot;Common smelt&quot;             &quot;Crans bully&quot;             
+## [21] &quot;Dart goby&quot;                &quot;Dusky galaxias&quot;          
+## [23] &quot;Dwarf galaxias&quot;           &quot;Dwarf inanga&quot;            
+## [25] &quot;Eldons galaxias&quot;          &quot;Estuarine triplefin&quot;     
+## [27] &quot;Flathead galaxias&quot;        &quot;Freshwater mussel&quot;       
+## [29] &quot;Freshwater shrimp&quot;        &quot;Galaxias \&quot;northern\&quot;&quot;   
+## [31] &quot;Galaxias \&quot;southern\&quot;&quot;    &quot;Galaxias \&quot;species D\&quot;&quot;  
+## [33] &quot;Galaxias \&quot;teviot\&quot;&quot;      &quot;Gambusia&quot;                
+## [35] &quot;Giant bully&quot;              &quot;Giant kokopu&quot;            
+## [37] &quot;Goldfish&quot;                 &quot;Gollum galaxias&quot;         
+## [39] &quot;Grass carp&quot;               &quot;Grey mullet&quot;             
+## [41] &quot;Guppy&quot;                    &quot;Inanga&quot;                  
+## [43] &quot;Koaro&quot;                    &quot;Koi carp&quot;                
+## [45] &quot;Koura&quot;                    &quot;Lamprey&quot;                 
+## [47] &quot;Longfin eel&quot;              &quot;Lowland longjaw galaxias&quot;
+## [49] &quot;Marine species&quot;           &quot;No species recorded&quot;     
+## [51] &quot;Perch&quot;                    &quot;Rainbow trout&quot;           
+## [53] &quot;Redfin bully&quot;             &quot;Roundhead galaxias&quot;      
+## [55] &quot;Rudd&quot;                     &quot;Shortfin eel&quot;            
+## [57] &quot;Shortjaw kokopu&quot;          &quot;Silver carp&quot;             
+## [59] &quot;Sockeye salmon&quot;           &quot;Stokells smelt&quot;          
+## [61] &quot;Tarndale bully&quot;           &quot;Tench&quot;                   
+## [63] &quot;Torrentfish&quot;              &quot;Unidentified bully&quot;      
+## [65] &quot;Unidentified eel&quot;         &quot;Unidentified flounder&quot;   
+## [67] &quot;Unidentified galaxiid&quot;    &quot;Unidentified mullet&quot;     
+## [69] &quot;Unidentified salmonid&quot;    &quot;Upland bully&quot;            
+## [71] &quot;Upland longjaw galaxias&quot;  &quot;Yelloweye mullet&quot;</code></pre>
+<p>Look at the REC data</p>
+<pre class="r"><code>min(rec$DISTSEA)
+## [1] NA
+max(rec$DISTSEA)
+## [1] NA
+
+min(rec$DISTSEA, na.rm = T)
+## [1] 30
+max(rec$DISTSEA, na.rm = T)
+## [1] 421457.9</code></pre>
+<p>check if the <code>nzrech</code> variable matches in the two datasets</p>
+<pre class="r"><code>intersect(dat$nzreach, rec$nzreach)
+##   [1]  2006167  2004122  8025062  7043284 15319597  8034472 10002380  4006069
+##   [9]  1010766 13045848 13524507  1022938  3043708  2007196 10010859  7041981
+##  [17] 13039998  9016280 10011827  8017035 11019373  3043548  3043229  6015863
+##  [25]  8013645  6001956  2004102  2007186  9012950  7043762 10011749  9014671
+##  [33]  1017133  4001685 10000596  7039661  3017110 13047068  7029252  4001361
+##  [41] 11002538  4005289  8025063 11006010  9009478  8024545  2004454  2001949
+##  [49]  9015066  2004889  6003995  5013256  9016410 13043834 13045924 11002132
+##  [57]  2004107  9003771  7029515  2005837  7033141  8023454 10012654  2007061
+##  [65] 12042253  3012541  2005601  3010847  3017713  3032654  3008300  3017022
+##  [73]  2009368  3007013  3011646  3012506  3042266  3038300  3007368  3019705
+##  [81]  3010100  3012542  2005793  3010516  3020958  3021391  3008593  3015340
+##  [89]  3015277  3008250  3012434  3010343  2009349  3018032  3038171  3013615
+##  [97]  3012631  3013040  3008630  3014933
+##  [ reached getOption(&quot;max.print&quot;) -- omitted 10190 entries ]
+setdiff(dat$nzreach, rec$nzreach)
+## [1] NA  0  9</code></pre>
+</div>
+</div>
+<div id="part-3-the-actual-munging" class="section level1">
+<h1>Part 3 The actual munging</h1>
+<p>Steps to take:</p>
+<ol style="list-style-type: decimal">
+<li>join the <code>dat</code> and <code>rec</code> datasets (<code>inner_join()</code>)</li>
+<li>filter out unwanted years and species (<code>filter()</code>)</li>
+<li>drop unwanted columns (<code>select()</code>)</li>
+<li>create a new column distsea_km (<code>mutate()</code>)</li>
+</ol>
+<p>join the two datasets</p>
+<pre class="r"><code>datBoth &lt;- inner_join(dat, rec, by = &quot;nzreach&quot;)
+head(datBoth, n = 3)
+##   spcode  card m    y catchname   catch                locality     time  org
+## 1 aldfor 29348 5 2007    Whau R 080.060         Avondale Stream 11:00:00  bma
+## 2 aldfor 21454 2 2002    Long B 075.000 Unnamed Stream Long Bay     &lt;NA&gt; nscc
+##   map    east   north altitude penet fishmeth effort pass abund number minl
+## 1 r11 2661200 6475000       10     2      nte     50    1  &lt;NA&gt;      4  230
+## 2 r10 2665859 6500387       10     1      han     NA   NA  &lt;NA&gt;      6   NA
+##   maxl nzreach   form      common_name             sci_name    family
+## 1  260 2006167 Stream Yelloweye mullet Aldrichetta forsteri Mugilidae
+## 2  150 2004122 Stream Yelloweye mullet Aldrichetta forsteri Mugilidae
+##         genus  species   threat_class native    X   LENGTH ORDER CLIMATE
+## 1 Aldrichetta forsteri not threatened native 1158 637.2792     2      WW
+## 2 Aldrichetta forsteri not threatened native  826 779.1169     2      WD
+##   GEOLOGY NET_POSN  DISTSEA CATCHAREA
+## 1       M       LO 1988.528   4863949
+## 2      SS       LO 1805.513   2524595
+##  [ reached &#39;max&#39; / getOption(&quot;max.print&quot;) -- omitted 1 rows ]</code></pre>
+</div>
+<div id="filter-rows-select-columns-and-mutate-columns" class="section level1">
+<h1>filter rows, select columns and mutate columns</h1>
+<pre class="r"><code>datBoth &lt;- datBoth %&gt;%
+  filter(y &lt; 2011)
+
+datBoth &lt;- datBoth %&gt;%
+  select(nzreach, y, east, north, altitude, effort, number:common_name, 
+         threat_class:native, ORDER, DISTSEA)
+
+datBoth &lt;- datBoth %&gt;%
+  mutate(dists_km = DISTSEA/1000,
+         ORDER = as.factor(ORDER))</code></pre>
+<pre class="r"><code>datBoth &lt;- datBoth %&gt;%
+  filter(y &lt; 2011) %&gt;%
+  select(nzreach, y, east, north, altitude, effort, number:common_name, 
+  threat_class:native, ORDER, DISTSEA) %&gt;%
+  mutate(distsea_km = DISTSEA/1000,
+         ORDER = as.factor(ORDER))
+head(datBoth, n = 3)
+##   nzreach    y    east   north altitude effort number minl maxl   form
+## 1 2006167 2007 2661200 6475000       10     50      4  230  260 Stream
+## 2 2004122 2002 2665859 6500387       10     NA      6   NA  150 Stream
+## 3 8025062 2004 2842200 6170800        4    200      6   NA   NA Stream
+##        common_name   threat_class native ORDER  DISTSEA distsea_km
+## 1 Yelloweye mullet not threatened native     2 1988.528   1.988528
+## 2 Yelloweye mullet not threatened native     2 1805.513   1.805513
+## 3 Yelloweye mullet not threatened native     4 9982.417   9.982417</code></pre>
+<pre class="r"><code>datBoth &lt;- datBoth %&gt;%
+  select(tidyselect::starts_with(&quot;s&quot;))</code></pre>
+<p>We now have somewhat curated dataset (<code>datBoth</code>), to address each of our three aims we need to do different things with the data, so we will now create a separate dataset for each aim.</p>
+<div id="aim-1-distance-inland-of-the-5-whitebait-species" class="section level2">
+<h2>Aim 1 distance inland of the 5 whitebait species</h2>
+<pre class="r"><code>
+wtbt &lt;- c(&quot;Koaro&quot;, &quot;Inanga&quot;, &quot;Shortjaw kokopu&quot;, &quot;Banded kokopu&quot;, &quot;Giant kokopu&quot;)
+
+datWtbt &lt;- datBoth %&gt;%
+  filter(common_name %in% wtbt)
+  </code></pre>
+<pre class="r"><code>datWtbt$common_name &lt;- factor(datWtbt$common_name, 
+                              levels = c(&quot;Koaro&quot;, &quot;Shortjaw kokopu&quot;, &quot;Inanga&quot;, 
+                                         &quot;Banded kokopu&quot;, &quot;Giant kokopu&quot;))
+
+ggplot(datWtbt, aes(x = common_name, y = distsea_km, colour = common_name)) +
+  geom_jitter(alpha = 0.5) +
+  scale_colour_brewer(palette = &quot;Dark2&quot;) +
+  coord_flip() +
+  xlab(&quot;Species&quot;) +
+  ylab(&quot;Distance to sea (km)&quot;) +
+  theme_bw() +
+  theme(legend.position = &quot;bottom&quot;)
+## Warning: Removed 1 rows containing missing values (geom_point).</code></pre>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-54-1.png" width="672" /></p>
+</div>
+</div>
+<div id="appendix---all-code" class="section level1">
+<h1>Appendix - All code</h1>
+<pre class="r"><code>
+##########
+## SETUP #
+##########
+
+# Download any missing packages 
+if (!require(&quot;dplyr&quot;)) install.packages(&quot;dplyr&quot;)
 if (!require(&quot;tidyr&quot;)) install.packages(&quot;tidyr&quot;)
-if (!require(&quot;nzffdr&quot;)) devtools::install_github(&quot;flee598/nzffdr&quot;)</code></pre>
-<p>Load packges:</p>
-<pre class="r"><code>library(nzffdr) # for example data 
+if (!require(&quot;nzffdr&quot;)) devtools::install_github(&quot;flee598/nzffdr&quot;)
+
+# load packages 
+library(nzffdr) # for example data 
 library(dplyr)  # for data wrangling 
-library(tidyr)  # for pivot_longer()</code></pre>
+library(tidyr)  # for pivot_longer()
+
+# Ipmort, clean and add missing data from the NZFFD
+dat &lt;- nzffdr::nzffd_import(starts = 2000, ends = 2010)
+dat &lt;- nzffd_clean(dat)
+dat &lt;- nzffd_fill(dat, alt = F, maps = F)
+
+
+###############################
+# Part 1: Inspecting the data #
+###############################
+
+# check the column names, dimensions and have a look at the first few rows
+colnames(dat)
+dim(dat)
+head(dat, n = 3)
+str(dat)
+</code></pre>
 <p><a href="https://dplyr.tidyverse.org"><code>dplyr</code></a> is a part of the <code>tidyverse</code> concerned with the basics of data manipulation.</p>
 </div>
