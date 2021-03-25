@@ -502,12 +502,31 @@ band_members %&gt;% full_join(band_instruments)
 </div>
 <div id="reshaping-data" class="section level1">
 <h1>7 Reshaping data</h1>
+<p>Generally data is collected in wide format, where each column is a unique variable of interest and each row is a “site” (in the general sense), for analysis it is often useful to have the data in long format, where each measured datapoint gets its own row.</p>
 <div class="figure" style="text-align: center"><span id="fig:reshape"></span>
 <img src="reshape.PNG" alt="Data reshaping" width="476" />
 <p class="caption">
 Figure 1: Data reshaping
 </p>
 </div>
+<p>Wide to long</p>
+<pre class="r"><code>iris %&gt;%
+  pivot_longer(cols = -Species, names_to = &quot;flower_part&quot;, values_to = &quot;size&quot;)
+## # A tibble: 600 x 3
+##    Species flower_part   size
+##    &lt;fct&gt;   &lt;chr&gt;        &lt;dbl&gt;
+##  1 setosa  Sepal.Length   5.1
+##  2 setosa  Sepal.Width    3.5
+##  3 setosa  Petal.Length   1.4
+##  4 setosa  Petal.Width    0.2
+##  5 setosa  Sepal.Length   4.9
+##  6 setosa  Sepal.Width    3  
+##  7 setosa  Petal.Length   1.4
+##  8 setosa  Petal.Width    0.2
+##  9 setosa  Sepal.Length   4.7
+## 10 setosa  Sepal.Width    3.2
+## # ... with 590 more rows</code></pre>
+<p>Those are most of the standard data wrangling functions commonly used on a day to day basis.</p>
 </div>
 <div id="case-study" class="section level1">
 <h1>Case study</h1>
@@ -526,17 +545,17 @@ Figure 1: Data reshaping
 <h1>Part 1: Getting the data</h1>
 <p>NZFFD data is available via the nzffdr package, we’ll import a subset of the entire database, getting all records from 2000 to 2010</p>
 <pre class="r"><code># Import, clean and add missing data from the NZFFD
-dat &lt;- nzffdr::nzffd_import(starts = 2000, ends = 2010)
-dat &lt;- nzffd_clean(dat)
-dat &lt;- nzffd_fill(dat, alt = F, maps = F)</code></pre>
-<p>Subset of the REC database (the whole dataset is massive so I have put a small speice of it on my dropbox for us to use):</p>
+fishD &lt;- nzffdr::nzffd_import(starts = 2000, ends = 2010)
+fishD &lt;- nzffd_clean(fishD)
+fishD &lt;- nzffd_fill(fishD, alt = F, maps = F)</code></pre>
+<p>Subset of the REC database (the whole dataset is massive so I have put a small chunk of it on my dropbox for us to use):</p>
 <pre class="r"><code>rec &lt;- read.csv(&quot;https://www.dropbox.com/s/zqn9f9ctb4hv74q/rec2010.csv?dl=1&quot;)</code></pre>
 </div>
 <div id="part-2-inspecting-the-data" class="section level1">
 <h1>Part 2: Inspecting the data</h1>
-<p>The first thing to do when data is loaded into R is to inspect it to make sure everything imported as expected, variables are in the right format and cover the right range of values.</p>
+<p>The first thing to do when data is loaded is to inspect it to make sure everything imported as expected and variables are in the right format.</p>
 <p>First 3 rows</p>
-<pre class="r"><code>head(dat, n = 3)
+<pre class="r"><code>head(fishD, n = 3)
 ##   spcode  card m    y catchname   catch                locality     time  org
 ## 1 aldfor 29348 5 2007    Whau R 080.060         Avondale Stream 11:00:00  bma
 ## 2 aldfor 21454 2 2002    Long B 075.000 Unnamed Stream Long Bay     &lt;NA&gt; nscc
@@ -565,7 +584,7 @@ Figure 2: REC river network
 </p>
 </div>
 <p>Data structure</p>
-<pre class="r"><code>str(dat)
+<pre class="r"><code>str(fishD)
 ## &#39;data.frame&#39;:    58845 obs. of  30 variables:
 ##  $ spcode      : chr  &quot;aldfor&quot; &quot;aldfor&quot; &quot;aldfor&quot; &quot;aldfor&quot; ...
 ##  $ card        : int  29348 21454 23928 105608 108028 23213 21130 30503 22440 19350 ...
@@ -612,14 +631,14 @@ str(rec)
 <h2>Check individual variables</h2>
 <p>We downloaded data for 2000 - 2010, check that is what we actually got:</p>
 <p>Check all the unique values of the year variable</p>
-<pre class="r"><code>sort(unique(dat$y))
+<pre class="r"><code>sort(unique(fishD$y))
 ##  [1] 2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 2011 2012
-table(dat$y)
+table(fishD$y)
 ## 
 ## 2000 2001 2002 2003 2004 2005 2006 2007 2008 2009 2010 2011 2012 
 ## 4099 6542 4826 5024 5173 6998 5694 5605 6077 4289 4509    7    2</code></pre>
 <p>Have a look at the species we have</p>
-<pre class="r"><code>sort(unique(dat$common_name))
+<pre class="r"><code>sort(unique(fishD$common_name))
 ##  [1] &quot;Alpine galaxias&quot;          &quot;Atlantic salmon&quot;         
 ##  [3] &quot;Australian longfin eel&quot;   &quot;Banded kokopu&quot;           
 ##  [5] &quot;Bignose galaxias&quot;         &quot;Black flounder&quot;          
@@ -667,7 +686,7 @@ min(rec$DISTSEA, na.rm = T)
 max(rec$DISTSEA, na.rm = T)
 ## [1] 421457.9</code></pre>
 <p>check if the <code>nzrech</code> variable matches in the two datasets</p>
-<pre class="r"><code>intersect(dat$nzreach, rec$nzreach)
+<pre class="r"><code>intersect(fishD$nzreach, rec$nzreach)
 ##   [1]  2006167  2004122  8025062  7043284 15319597  8034472 10002380  4006069
 ##   [9]  1010766 13045848 13524507  1022938  3043708  2007196 10010859  7041981
 ##  [17] 13039998  9016280 10011827  8017035 11019373  3043548  3043229  6015863
@@ -683,12 +702,27 @@ max(rec$DISTSEA, na.rm = T)
 ##  [97]  3012631  3013040  3008630  3014933
 ##  [ reached getOption(&quot;max.print&quot;) -- omitted 10190 entries ]
 
-setdiff(dat$nzreach, rec$nzreach)
-## [1] NA  0  9</code></pre>
+setdiff(fishD$nzreach, rec$nzreach)
+## [1] NA  0  9
+
+setdiff(rec$nzreach, fishD$nzreach)
+##   [1] 1000001 1000006 1000010 1000013 1000023 1000118 1000254 1000342 1000371
+##  [10] 1000561 1000614 1001130 1001137 1001148 1001251 1001267 1001271 1001301
+##  [19] 1001314 1001341 1001345 1001365 1001396 1001397 1001405 1001415 1001428
+##  [28] 1001448 1001449 1001456 1001457 1001498 1001502 1001508 1001527 1001530
+##  [37] 1001595 1001598 1001605 1001678 1001702 1001722 1001796 1001896 1001946
+##  [46] 1001959 1001982 1002051 1002055 1002056 1002075 1002085 1002088 1002111
+##  [55] 1002129 1002133 1002188 1002207 1002248 1002267 1002427 1002474 1002494
+##  [64] 1002560 1002613 1002665 1002714 1002733 1002756 1002783 1002966 1003003
+##  [73] 1003015 1003022 1003208 1003349 1003409 1003470 1003484 1003506 1003598
+##  [82] 1003644 1003864 1003909 1003946 1004027 1004184 1004488 1004601 1004624
+##  [91] 1004948 1005104 1005192 1005775 1005959 1006072 1006075 1006106 1006190
+## [100] 1006231
+##  [ reached getOption(&quot;max.print&quot;) -- omitted 582 entries ]</code></pre>
 </div>
 </div>
-<div id="part-3-the-actual-munging" class="section level1">
-<h1>Part 3 The actual munging</h1>
+<div id="part-3-wrangling" class="section level1">
+<h1>Part 3 Wrangling</h1>
 <p>Steps to take:</p>
 <ol style="list-style-type: decimal">
 <li>join the <code>dat</code> and <code>rec</code> datasets (<code>inner_join()</code>)</li>
@@ -697,7 +731,7 @@ setdiff(dat$nzreach, rec$nzreach)
 <li>create a new column distsea_km (<code>mutate()</code>)</li>
 </ol>
 <p>join the two datasets</p>
-<pre class="r"><code>datBoth &lt;- inner_join(dat, rec, by = &quot;nzreach&quot;)
+<pre class="r"><code>datBoth &lt;- inner_join(fishD, rec, by = &quot;nzreach&quot;)
 head(datBoth, n = 3)
 ##   spcode  card m    y catchname   catch                locality     time  org
 ## 1 aldfor 29348 5 2007    Whau R 080.060         Avondale Stream 11:00:00  bma
@@ -762,5 +796,5 @@ datWtbt &lt;- datBoth %&gt;%
   theme_bw() +
   theme(legend.position = &quot;bottom&quot;)
 ## Warning: Removed 1 rows containing missing values (geom_point).</code></pre>
-<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-53-1.png" width="672" /></p>
+<p><img src="{{< blogdown/postref >}}index_files/figure-html/unnamed-chunk-54-1.png" width="672" /></p>
 </div>
